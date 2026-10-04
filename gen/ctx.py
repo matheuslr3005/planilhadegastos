@@ -6,6 +6,7 @@ NREC = 1000    # linhas em Recebimentos
 NCLI = 30      # clientes
 NGOAL = 8      # metas
 NENT, NSAI, NFORMA = 8, 16, 8
+NBENT, NBSAI = 3, 4      # categorias do NEGÓCIO (lista curta): entradas / saídas
 
 
 class Ctx:
@@ -16,9 +17,9 @@ class Ctx:
         if self.aut:
             self.N = dict(INICIO="Início", GERAL="Painel Geral", PAINEL="Painel Pessoal", PNEG="Painel Negócio",
                           LANC="Lanç. Pessoal", ORC="Orçamento Pessoal", RESUMO="Resumo Pessoal", METAS="Metas",
-                          LNEG="Lanç. Negócio", CLI="Clientes", REC="Recebimentos", IMP="Impostos",
+                          LNEG="Lanç. Negócio", REC="A Receber", IMP="Impostos",
                           FLUXO="Fluxo de Caixa", CONFIG="Config", DADOS="Dados")
-            self.order = ["INICIO", "GERAL", "PAINEL", "PNEG", "LANC", "ORC", "RESUMO", "METAS", "LNEG", "CLI",
+            self.order = ["INICIO", "GERAL", "PAINEL", "PNEG", "LANC", "ORC", "RESUMO", "METAS", "LNEG",
                           "REC", "IMP", "FLUXO", "CONFIG", "DADOS"]
             self.nav_rows = 3
         else:
@@ -30,7 +31,7 @@ class Ctx:
         self.ws = {}
         tab = {"INICIO": T["ink"], "GERAL": T["navy"], "PAINEL": T["teal"], "PNEG": T["orange_mid"],
                "LANC": T["teal_mid"], "ORC": T["teal_mid"], "RESUMO": T["teal_mid"], "METAS": T["teal_mid"],
-               "LNEG": "#FB923C", "CLI": "#FB923C", "REC": "#FB923C", "IMP": "#FB923C", "FLUXO": "#FB923C",
+               "LNEG": "#FB923C", "REC": "#FB923C", "IMP": "#FB923C", "FLUXO": "#FB923C",
                "CONFIG": "#94A3B8", "DADOS": "#CBD5E1"}
         if not self.aut:
             tab["PAINEL"] = T["teal"]
@@ -99,21 +100,19 @@ class Ctx:
         CS, L = self.CS, self.L
         # Recebimentos
         L["r_hr"], L["r_r0"], L["r_r1"] = CS + 3, CS + 4, CS + 3 + NREC
-        # Clientes
-        L["cli_hdr"], L["cli_r0"], L["cli_r1"], L["cli_tot"] = CS, CS + 1, CS + NCLI, CS + NCLI + 1
         # Impostos
         L["i_p0"], L["i_hdr"], L["i_r0"], L["i_tot"] = CS + 1, CS + 15, CS + 16, CS + 28
         # Fluxo de caixa
         L["f_prem"] = CS + 1
         L["f_dates"], L["f_hdr"], L["f_sit"], L["f_0"] = CS + 8, CS + 9, CS + 10, CS + 11
-        L["f_chart"] = CS + 26
-        L["f_detsec"] = CS + 43
-        L["f_dethdr"] = CS + 44
-        L["f_ent0"] = CS + 46            # 8 linhas
-        L["f_enttot"] = CS + 54
-        L["f_sai0"] = CS + 56            # 16 linhas (1ª = pró-labore)
-        L["f_saitot"] = CS + 72
-        L["f_opex"] = CS + 73
+        L["f_chart"] = CS + 27
+        L["f_detsec"] = CS + 44
+        L["f_dethdr"] = CS + 45
+        L["f_ent0"] = CS + 47            # NBENT linhas (2 primeiras = faturamento)
+        L["f_enttot"] = CS + 47 + NBENT
+        L["f_sai0"] = CS + 49 + NBENT    # NBSAI linhas (última = retirada pessoal)
+        L["f_saitot"] = CS + 49 + NBENT + NBSAI
+        L["f_opex"] = CS + 50 + NBENT + NBSAI
         # seletores dos painéis
         L["pn_sel"], L["pg_sel"] = (CS, 4), (CS, 4)
         # Dados (blocos do negócio)
@@ -122,7 +121,7 @@ class Ctx:
         L["d_mneg"], L["d_mger"], L["d_negm"] = (b0 + 1, 3), (b0 + 2, 3), (b0 + 3, 3)
         L["d_btot"], L["d_btitle"] = (b0 + 4, 3), (b0 + 5, 3)
         L["b_cat0"] = b0 + 9
-        L["b_cli0"] = b0 + 28
+        L["b_orig0"] = b0 + 28
         L["b_atr0"] = b0 + 61
         L["b_serh"] = b0 + 68
         names = ["rec", "desp", "lucro", "sreal", "sproj", "cxp", "cxn", "resp", "prol", "gasp", "neg", "op", "imp", "pro"]
@@ -158,7 +157,7 @@ class Ctx:
         g = [("🏠 Início", "INICIO"), ("📊 Painel Geral", "GERAL"), ("👤 Painel Pessoal", "PAINEL"),
              ("💼 Painel Negócio", "PNEG"), ("⚙ Config", "CONFIG")]
         p = [("📝 Lançamentos", "LANC"), ("💳 Orçamento", "ORC"), ("📅 Resumo anual", "RESUMO"), ("🎯 Metas", "METAS")]
-        b = [("📝 Lançamentos", "LNEG"), ("🤝 Clientes", "CLI"), ("💰 Recebimentos", "REC"),
+        b = [("📝 Lançamentos", "LNEG"), ("💰 A Receber", "REC"),
              ("🧾 Impostos", "IMP"), ("📈 Fluxo de Caixa", "FLUXO")]
         return [dict(color=T["navy"], items=[(l, N[k]) for l, k in g]),
                 dict(color=T["teal"], tag="PESSOAL", items=[(l, N[k]) for l, k in p]),

@@ -5,7 +5,7 @@ Produto digital em **duas versões**, cada uma em **2 arquivos** (em branco e co
 | Arquivo (`dist/`) | Para quem | Abas |
 |---|---|---|
 | `Financas-em-Dia_Pessoal_EM-BRANCO.xlsx` / `_COM-EXEMPLO.xlsx` | Pessoa física (finanças domésticas) | Início · Painel · Lançamentos · Orçamento · Resumo Anual · Metas · Config · Dados |
-| `Financas-em-Dia_Autonomo-MEI_EM-BRANCO.xlsx` / `_COM-EXEMPLO.xlsx` | Autônomos e MEI (pessoal **e** negócio separados) | Início · Painel Geral · Painel Pessoal · Painel Negócio · Lanç. Pessoal · Orçamento Pessoal · Resumo Pessoal · Metas · Lanç. Negócio · Clientes · Recebimentos · Impostos · Fluxo de Caixa · Config · Dados |
+| `Financas-em-Dia_Autonomo-MEI_EM-BRANCO.xlsx` / `_COM-EXEMPLO.xlsx` | Autônomos e MEI (pessoal **e** negócio separados) | Início · Painel Geral · Painel Pessoal · Painel Negócio · Lanç. Pessoal · Orçamento Pessoal · Resumo Pessoal · Metas · Lanç. Negócio · A Receber · Impostos · Fluxo de Caixa · Config · Dados |
 
 > **Nome "Finanças em Dia" é provisório** — troque em `gen/build.py` (`BRAND`) e regenere.
 > O arquivo **COM-EXEMPLO** é ótimo para a página de venda e para o comprador entender; o **EM-BRANCO** é o que ele usa de verdade.
@@ -18,11 +18,13 @@ Produto digital em **duas versões**, cada uma em **2 arquivos** (em branco e co
 orçamento planejado × realizado com barras de progresso e alertas; **metas de economia** (aporte mensal necessário, situação, reserva de
 emergência ideal); **painel** com seletor de mês, 6 cartões (com variação vs mês anterior), 4 gráficos dinâmicos, metas e alertas.
 
-**Autônomo** — tudo do Pessoal **+** separação Pessoal × Negócio (abas e categorias próprias), **Clientes** (faturado, recebido,
-a receber, em atraso, concentração), **Recebimentos** (vencimento, pagamento, status automático Pago/Pendente/Atrasado, dias de atraso),
+**Autônomo** — tudo do Pessoal **+** separação Pessoal × Negócio (abas e categorias próprias), **A Receber** (vendas a prazo: cliente em texto livre, vencimento, pagamento,
+status automático Pago/Pendente/Atrasado e dias de atraso),
 **Impostos** (DAS do MEI calculado por atividade, ou % para Simples/outro; vencimento dia 20; status; **limite anual do MEI** com
 projeção e alerta de 80%/100%) e **Fluxo de Caixa** do negócio mês a mês — **realizado** até o mês de hoje e **projetado** depois (a receber em aberto,
 DAS em aberto, média de despesas, pró-labore e receita nova previstos). Três painéis: Geral (consolidado), Pessoal e Negócio.
+
+**Negócio simplificado para MEI que vende produtos ou serviços:** lista curta de categorias — entradas: *Vendas*, *Pagamento mensal*, *Outras entradas* (as duas primeiras contam como faturamento do limite do MEI); saídas: *Compras (mercadoria e materiais)*, *Despesas*, *Outros impostos e taxas*, *Retirada pessoal (pró-labore)*. O DAS é calculado na aba Impostos.
 
 Recursos de UX: botões de navegação (hiperlinks internos) no topo de todas as abas · listas suspensas · formatação condicional
 (verde/vermelho/amarelo para saldos, status e alertas) · faixa de **verificação automática** nos lançamentos · células amarelas = você preenche.

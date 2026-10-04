@@ -66,23 +66,29 @@ wbv = run("pf", edit_year, "pf_2027")
 chk("PF ano 2027: entradas de set = 0", wbv[N["PAINEL"]].cell(row=L["p_sel"][0]+3, column=2).value, 0)
 
 # ---- AUT
+from personal import NENT_L
 c = ctx_for("aut"); L, N = c.L, c.N
 rec, lan = demo.business_rows()
+V, MEN, OUT = NENT_L
+def fat_mes(m):
+    return sum(r[3] for r in rec if r[5] and r[5].month == m) + sum(x[4] for x in lan if x[0].month == m and x[2] in (V, MEN))
 def edit_aut(wb):
     wb[N["IMP"]].cell(row=L["i_p0"], column=5).value = "Simples Nacional"
     ws = wb[N["REC"]]
-    # paga a cobrança do Studio Aurora de setembro (a 1ª pendente) em 30/09
-    for r in range(L["r_r0"], L["r_r0"] + len(rec)):
-        if ws.cell(row=r, column=3).value == "Studio Aurora" and ws.cell(row=r, column=7).value is None:
-            ws.cell(row=r, column=7).value = dt.datetime(2026, 9, 30); break
+    for r in range(L["r_r0"], L["r_r0"] + len(rec)):          # paga a 1ª cobrança da Tech Nova ainda em aberto, em 30/09
+        if ws.cell(row=r, column=3).value == "Tech Nova Ltda" and ws.cell(row=r, column=7).value is None:
+            ws.cell(row=r, column=7).value = dt.datetime(2026, 9, 30); valor = ws.cell(row=r, column=5).value; break
     wb[N["PNEG"]].cell(row=L["pn_sel"][0], column=4).value = "Agosto"
 wbv = run("aut", edit_aut, "aut_simples")
 ws = wbv[N["IMP"]]
-chk("AUT Simples: imposto jan = 6% da receita jan", ws.cell(row=L["i_r0"], column=4).value, round(3300*0.06, 2))
+chk("AUT Simples: imposto jan = 6% do faturamento de jan", ws.cell(row=L["i_r0"], column=4).value, round(fat_mes(1) * 0.06, 2))
 print("    msg limite:", wbv[N["IMP"]].cell(row=c.CS+6, column=8).value)
-chk("AUT: recebido no ano sobe após pagar (55530+1800)", wbv[N["REC"]].cell(row=c.CS+1, column=5).value, 55530 + 1800)
-chk("AUT: em atraso cai (4430-1800)", wbv[N["REC"]].cell(row=c.CS+1, column=4).value, 4430 - 1800)
-chk("AUT: Painel Negócio mês de agosto: receita", wbv[N["PNEG"]].cell(row=c.CS+3, column=2).value, 7300)
+primeira = next(r for r in sorted(rec, key=lambda r: r[0]) if r[1] == "Tech Nova Ltda" and r[5] is None)
+paid = sum(r[3] for r in rec if r[5])
+late = sum(r[3] for r in rec if r[5] is None and r[4] < dt.date(2026, 9, 30))
+chk("AUT: recebido no ano sobe após pagar", wbv[N["REC"]].cell(row=c.CS+1, column=5).value, paid + primeira[3])
+chk("AUT: em atraso cai", wbv[N["REC"]].cell(row=c.CS+1, column=4).value, late - primeira[3])
+chk("AUT: Painel Negócio mês de agosto: faturamento", wbv[N["PNEG"]].cell(row=c.CS+3, column=2).value, fat_mes(8))
 
 print("\nRESULTADO:", "TUDO CONFERE" if not fails else f"{len(fails)} FALHA(S): {fails}")
 sys.exit(1 if fails else 0)

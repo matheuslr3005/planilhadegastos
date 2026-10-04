@@ -28,7 +28,8 @@ def personal_rows(aut=False, seed=7, months=9, year=2026):
     for m in range(1, months + 1):
         # ---------------- entradas
         if aut:
-            add(m, 5, "Pró-labore do mês", ent[0], "Transferência", 4500)
+            add(m, 5, "Pró-labore (retirada do negócio)", ent[0], "Transferência", 3400)
+            add(m, 10, "Salário / renda fixa (cônjuge)", ent[1], "Transferência", 1100)
             if m in (3, 6):
                 add(m, 20, "Restituição / reembolso", ent[4], "Pix", jit(380))
             add(m, 28, "Rendimento da poupança", ent[3], "Transferência", jit(55, .3))
@@ -117,93 +118,64 @@ def personal_rows(aut=False, seed=7, months=9, year=2026):
     return rows
 
 
-# ---------------------------------------------------------------- negócio (autônomo)
-CLIENTES = [
-    ("Studio Aurora", "Camila Prado", "camila@studioaurora.com.br", "Indicação"),
-    ("Clínica Vida Plena", "Dr. Rafael Nunes", "(11) 98877-1020", "Instagram"),
-    ("Padaria Dois Irmãos", "Seu Antônio", "(11) 3344-2211", "Indicação"),
-    ("Tech Nova Ltda", "Bianca Torres", "bianca@technova.com", "LinkedIn"),
-    ("Escola Horizonte", "Coord. Marta", "marta@escolahorizonte.edu.br", "Site"),
-    ("Loja Bella Moda", "Juliana Reis", "(21) 99120-4455", "Instagram"),
-    ("Café do Centro", "Paulo Menezes", "(11) 97766-3300", "Indicação"),
-    ("Maria Oliveira (PF)", "Maria Oliveira", "maria.oliveira@email.com", "Indicação"),
-]
-
-
+# ---------------------------------------------------------------- negócio (MEI que vende produtos e serviços)
 def business_rows(year=2026, months=9, seed=11):
-    """Retorna (recebimentos, lançamentos do negócio, impostos_pagos) fictícios."""
+    """Retorna (A Receber, lançamentos do negócio) fictícios — uma lojinha de acessórios e presentes."""
     rnd = random.Random(seed)
     rec, lan = [], []
     ref = D(year, 9, 30)
 
-    def receb(emissao, cliente, desc, valor, venc_dias=15, atraso=None, pago=True, forma="Pix"):
+    def receb(emissao, cliente, desc, valor, venc_dias=15, pago=True, atraso=None, forma="Pix"):
         venc = emissao + dt.timedelta(days=venc_dias)
+        pg = None
         if pago:
-            pg = venc + dt.timedelta(days=atraso if atraso is not None else rnd.choice([-3, -1, 0, 0, 2, 5]))
-            pg = min(pg, ref)
-        else:
-            pg = None
+            pg = min(venc + dt.timedelta(days=atraso if atraso is not None else rnd.choice([-3, -1, 0, 0, 2, 5])), ref)
         rec.append((emissao, cliente, desc, round(valor, 2), venc, pg, forma))
 
-    for m in range(1, months + 1):
-        # contratos mensais
-        receb(D(year, m, 3), "Studio Aurora", f"Gestão de redes sociais – {m:02d}/{year}", 1800, 10)
-        receb(D(year, m, 5), "Clínica Vida Plena", f"Pacote de conteúdo mensal – {m:02d}/{year}", 1500, 10)
-        if m >= 3:
-            receb(D(year, m, 8), "Padaria Dois Irmãos", f"Materiais e cardápio – {m:02d}/{year}", 650, 10)
-    # projetos avulsos
-    projs = [(1, 14, "Tech Nova Ltda", "Identidade visual completa", 3200),
-             (2, 20, "Loja Bella Moda", "Catálogo digital", 1850),
-             (3, 12, "Maria Oliveira (PF)", "Logotipo e cartão de visita", 780),
-             (4, 9, "Escola Horizonte", "Redesenho do material de matrícula", 2400),
-             (4, 28, "Café do Centro", "Cardápio e placas", 950),
-             (5, 15, "Tech Nova Ltda", "Landing page", 2600),
-             (6, 6, "Loja Bella Moda", "Campanha Dia dos Namorados", 1900),
-             (6, 25, "Escola Horizonte", "Posts de volta às aulas", 1200),
-             (7, 10, "Café do Centro", "Fotos e arte para delivery", 1100),
-             (7, 22, "Tech Nova Ltda", "Apresentação institucional", 1700),
-             (8, 4, "Loja Bella Moda", "Campanha Dia dos Pais", 1650),
-             (8, 18, "Escola Horizonte", "Site institucional – 1ª parcela", 2200),
-             (9, 2, "Escola Horizonte", "Site institucional – 2ª parcela", 2200),
-             (9, 9, "Maria Oliveira (PF)", "Identidade para consultório", 1500)]
-    for m, d, cli, desc, val in projs:
-        receb(D(year, m, d), cli, desc, val, 15)
-    # pendências / atrasos (referência: 30/09)
-    receb(D(year, 9, 3), "Studio Aurora", "Gestão de redes sociais – 09/2026", 1800, 10, pago=False)   # vencida
-    rec[:] = [r for r in rec if not (r[1] == "Studio Aurora" and "09/2026" in r[2] and r[5] is not None)]
-    receb(D(year, 9, 5), "Clínica Vida Plena", "Pacote de conteúdo mensal – 09/2026", 1500, 10, pago=False)  # vencida
-    rec[:] = [r for r in rec if not (r[1] == "Clínica Vida Plena" and "09/2026" in r[2] and r[5] is not None)]
-    receb(D(year, 9, 8), "Padaria Dois Irmãos", "Materiais e cardápio – 09/2026", 650, 10, pago=False)  # vencida
-    rec[:] = [r for r in rec if not (r[1] == "Padaria Dois Irmãos" and "09/2026" in r[2] and r[5] is not None)]
-    receb(D(year, 9, 24), "Tech Nova Ltda", "Manutenção da landing page", 900, 20, pago=False)         # a vencer
-    receb(D(year, 9, 28), "Loja Bella Moda", "Campanha Black Friday (sinal)", 1400, 25, pago=False)    # a vencer
-    # atraso mais antigo
-    receb(D(year, 8, 12), "Café do Centro", "Reimpressão de materiais", 480, 15, pago=False)
+    pedidos = [(1, 14, "Tech Nova Ltda", "Kits de brindes corporativos", 1900),
+               (2, 9, "Escola Aurora", "Material de volta às aulas", 1650),
+               (3, 12, "Maria Oliveira (PF)", "Encomenda de presentes", 780),
+               (3, 28, "Café do Centro", "Lembrancinhas de evento", 950),
+               (4, 15, "Tech Nova Ltda", "Brindes — reposição", 1400),
+               (5, 6, "Clínica Vida Plena", "Kits de boas-vindas", 1200),
+               (5, 22, "Loja Bella Moda", "Revenda de acessórios", 1500),
+               (6, 10, "Escola Aurora", "Lembranças de formatura", 2100),
+               (7, 8, "Café do Centro", "Cestas para clientes", 1100),
+               (7, 24, "Tech Nova Ltda", "Brindes semestrais", 1700),
+               (8, 4, "Loja Bella Moda", "Revenda — Dia dos Pais", 1650),
+               (8, 19, "Escola Aurora", "Kits Dia do Professor", 1200),
+               (9, 2, "Escola Aurora", "Pedido de setembro", 1300),
+               (9, 9, "Maria Oliveira (PF)", "Presentes corporativos", 1500)]
+    for m, dd, cli, desc, val in pedidos:
+        receb(D(year, m, dd), cli, desc, val, 15)
+    receb(D(year, 8, 12), "Café do Centro", "Cestas (reposição)", 480, 15, pago=False)            # atrasada há 34 dias
+    receb(D(year, 9, 3), "Tech Nova Ltda", "Brindes de setembro", 1800, 10, pago=False)             # atrasada
+    receb(D(year, 9, 6), "Loja Bella Moda", "Pedido de setembro", 1500, 10, pago=False)             # atrasada
+    receb(D(year, 9, 24), "Clínica Vida Plena", "Kits de outubro", 900, 20, pago=False)             # a vencer
+    receb(D(year, 9, 28), "Loja Bella Moda", "Pedido Black Friday (sinal)", 1400, 25, pago=False)   # a vencer
     rec.sort(key=lambda r: r[0])
 
-    # lançamentos do negócio
-    N_ = NSAI_L
+    V, MEN, OUT = NENT_L
+    COMP, DESP, IMPT, RET = NSAI_L
     for m in range(1, months + 1):
-        lan.append((D(year, m, 5), "Retirada de pró-labore", N_[0], "Transferência", 4500, "", "Vai para Pessoal"))
-        lan.append((D(year, m, 2), "Adobe Creative Cloud", N_[2], "Cartão de crédito", 124.0, "", ""))
-        lan.append((D(year, m, 2), "Canva Pro", N_[2], "Cartão de crédito", 34.9, "", ""))
-        lan.append((D(year, m, 12), "Hospedagem e domínio", N_[2], "Cartão de crédito", 59.9, "", ""))
-        lan.append((D(year, m, 10), "Coworking", N_[7], "Boleto", 450.0, "", ""))
-        lan.append((D(year, m, 15), "Internet e celular (parte profissional)", N_[8], "Débito automático", 140.0, "", ""))
-        lan.append((D(year, m, 28), "Tarifas bancárias e maquininha", N_[10], "Débito automático", round(rnd.uniform(25, 48), 2), "", ""))
-        lan.append((D(year, m, 16), "Anúncios (Meta Ads)", N_[3], "Cartão de crédito", round(rnd.uniform(150, 360), 2), "", ""))
-        lan.append((D(year, m, 21), "Transporte a clientes", N_[5], "Cartão de crédito", round(rnd.uniform(60, 190), 2), "", ""))
-        if m in (2, 5, 8):
-            lan.append((D(year, m, 18), "Almoço com cliente", N_[6], "Cartão de crédito", round(rnd.uniform(70, 140), 2), "", ""))
-        if m in (4, 9):
-            lan.append((D(year, m, 9), "Curso de especialização", N_[11], "Cartão de crédito", 320.0, "", ""))
+        for d_ in (7, 14, 21, 28):
+            lan.append((D(year, m, d_), "Vendas da semana (balcão, Pix e cartão)", V, "Pix", round(rnd.uniform(600, 950), 2), "", ""))
+        lan.append((D(year, m, 5), "Mensalidade — Escola Aurora (kits)", MEN, "Pix", 650.0, "Escola Aurora", ""))
+        lan.append((D(year, m, 8), "Mensalidade — Clínica Vida Plena (brindes)", MEN, "Pix", 450.0, "Clínica Vida Plena", ""))
+        lan.append((D(year, m, 3), "Reposição de mercadoria — Fornecedor Alfa", COMP, "Boleto", round(rnd.uniform(650, 800), 2), "", ""))
+        lan.append((D(year, m, 17), "Reposição de mercadoria — Fornecedor Beta", COMP, "Boleto", round(rnd.uniform(600, 780), 2), "", ""))
+        lan.append((D(year, m, 10), "Aluguel do ponto", DESP, "Boleto", 450.0, "", ""))
+        lan.append((D(year, m, 12), "Internet e celular", DESP, "Débito automático", 140.0, "", ""))
+        lan.append((D(year, m, 16), "Anúncios no Instagram", DESP, "Cartão de crédito", round(rnd.uniform(150, 260), 2), "", ""))
+        lan.append((D(year, m, 20), "Frete e entregas", DESP, "Pix", round(rnd.uniform(90, 180), 2), "", ""))
+        lan.append((D(year, m, 22), "Embalagens", DESP, "Pix", round(rnd.uniform(80, 140), 2), "", ""))
+        lan.append((D(year, m, 27), "Tarifas e maquininha", DESP, "Débito automático", round(rnd.uniform(45, 80), 2), "", ""))
+        lan.append((D(year, m, 5), "Retirada pessoal", RET, "Transferência", 3400.0, "", "Vai para Pessoal"))
+        if m == 3:
+            lan.append((D(year, m, 18), "Taxa de alvará", IMPT, "Boleto", 180.0, "", ""))
+        if m == 4:
+            lan.append((D(year, m, 9), "Reembolso de fornecedor", OUT, "Pix", 120.0, "", ""))
         if m == 6:
-            lan.append((D(year, m, 14), "Monitor 27\" 4K", N_[4], "Cartão de crédito", 1480.0, "", "Equipamento"))
-        if m in (3, 7):
-            lan.append((D(year, m, 22), "Freelancer de motion design", N_[13], "Pix", 600.0, "", ""))
-        if m == 1:
-            lan.append((D(year, m, 20), "Seguro de equipamentos", N_[14], "Cartão de crédito", 380.0, "", ""))
-        if m in (2, 6, 9):
-            lan.append((D(year, m, 27), "Receita avulsa – venda de templates", NENT_L[0], "Pix", round(rnd.uniform(180, 420), 2), "", ""))
+            lan.append((D(year, m, 14), "Expositor novo para a loja", DESP, "Cartão de crédito", 650.0, "", "Equipamento"))
     lan.sort(key=lambda r: (r[0], r[1]))
     return rec, lan

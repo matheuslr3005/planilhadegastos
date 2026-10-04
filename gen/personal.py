@@ -17,12 +17,10 @@ SAI = ["Moradia", "Contas da casa", "Alimentação", "Transporte", "Saúde", "Ed
        "Reserva e Metas", "Impostos pessoais", "Outros"]
 FORMAS = ["Pix", "Cartão de débito", "Cartão de crédito", "Dinheiro", "Boleto", "Transferência",
           "Débito automático", "Outro"]
-NENT_L = ["Receita avulsa (vendas/serviços)", "Aporte do sócio", "Rendimentos do caixa", "Reembolsos recebidos",
-          "Venda de equipamentos", "Estornos e devoluções", "Subsídios e prêmios", "Outras entradas"]
-NSAI_L = ["Pró-labore / Retirada", "Materiais e insumos", "Software e assinaturas", "Marketing e anúncios",
-          "Equipamentos", "Transporte e viagens", "Alimentação a trabalho", "Aluguel / coworking",
-          "Internet e telefone", "Contabilidade", "Taxas e tarifas", "Capacitação e cursos",
-          "Outros impostos e taxas", "Terceiros / freelancers", "Seguros", "Outras despesas"]
+# Negócio (lista curta, pensada para MEI que vende produtos ou serviços)
+# entradas: as 2 primeiras contam como FATURAMENTO; saídas: a ÚLTIMA é a retirada pessoal (pró-labore)
+NENT_L = ["Vendas", "Pagamento mensal", "Outras entradas"]
+NSAI_L = ["Compras (mercadoria e materiais)", "Despesas", "Outros impostos e taxas", "Retirada pessoal (pró-labore)"]
 
 STATUS_CF = {  # texto contido -> (fonte, fundo)
     "Estourou": (T["neg"], T["neg_bg"]), "Atenção": (T["warn"], T["warn_bg"]), "OK": (T["pos"], T["pos_bg"]),
@@ -62,7 +60,7 @@ def config(ctx):
             ("cfg_meta", "Meta de taxa de poupança", 0.20, "0%", "% da renda que você quer guardar por mês."),
             ("cfg_saldo0", "Saldo pessoal em 1º de janeiro", 2500 if ctx.demo else 0, MONEY, "Dinheiro que você já tinha no início do ano.")]
     if ctx.aut:
-        rows.append(("cfg_neg", "Nome do negócio", "Estúdio Exemplo" if ctx.demo else "Meu Negócio", None, ""))
+        rows.append(("cfg_neg", "Nome do negócio", "Loja Exemplo" if ctx.demo else "Meu Negócio", None, ""))
     for key, label, val, num, hint in rows:
         r, c = L[key]
         ws.write(r - 1, 1, label, lab)
@@ -96,7 +94,7 @@ def config(ctx):
     if ctx.aut:
         headers[0] = (L["c_ent"], "ENTRADAS PESSOAIS", NENT, ENT_AUT)
         headers[1] = (L["c_sai"], "SAÍDAS PESSOAIS", NSAI, SAI)
-        headers += [(L["c_nent"], "NEGÓCIO — ENTRADAS", NENT, NENT_L), (L["c_nsai"], "NEGÓCIO — SAÍDAS", NSAI, NSAI_L)]
+        headers += [(L["c_nent"], "NEGÓCIO — ENTRADAS", NBENT, NENT_L), (L["c_nsai"], "NEGÓCIO — SAÍDAS", NBSAI, NSAI_L)]
     cell_f = ctx.f_input(align="left")
     for c, title, n, items in headers:
         ws.write(LS - 1, c - 1, title, sec)
@@ -113,10 +111,10 @@ def config(ctx):
     if ctx.aut:
         tip = ctx.fmt(italic=True, font_size=8, font_color=T["muted"], text_wrap=True, valign="top")
         r = LS + 18
-        ws.merge_range(r - 1, L["c_nsai"] - 1, r + 3, L["c_nsai"] - 1,
-                "⚠ A 1ª categoria de saída do negócio (Pró-labore / Retirada) e a 1ª de entrada pessoal "
-                "(Pró-labore / Retirada do negócio) têm tratamento especial: lance a MESMA retirada nas duas pontas. "
-                "A 1ª entrada do negócio (Receita avulsa) conta como faturamento.", tip)
+        ws.merge_range(r - 1, L["c_nsai"] - 1, r + 5, L["c_nsai"] - 1,
+                       "⚠ Regras do negócio: as 2 primeiras ENTRADAS (Vendas e Pagamento mensal) contam como faturamento "
+                       "(limite do MEI). A última SAÍDA (Retirada pessoal) é o seu pró-labore: lance a MESMA retirada em Lanç. "
+                       "Pessoal, como entrada 'Pró-labore'. Vendas a prazo ficam só na aba A Receber (não duplique).", tip)
     ws.freeze_panes(CS - 1, 0)
 
 
@@ -212,7 +210,7 @@ def dados(ctx):
 
 # ===================================================================== LANÇAMENTOS (genérico)
 def lancamentos(ctx, key, *, area, title, subtitle, ent_key, sai_key, all_col_key, extra_label, extra_list_ref,
-                demo_rows=None, extra_width=22, mode="pessoal"):
+                demo_rows=None, extra_width=22, mode="pessoal", n_ent=NENT, n_sai=NSAI):
     ws, B = ctx.ws[key], ctx.book
     L, CS, N = ctx.L, ctx.CS, ctx.N
     th = ctx.theme(area)
@@ -244,10 +242,10 @@ def lancamentos(ctx, key, *, area, title, subtitle, ent_key, sai_key, all_col_ke
     val = lambda num, color=T["ink"]: B.fmt(font_size=14, bold=True, bg_color=T["bg"], num_format=num, indent=1,
                                             font_color=color, align="left")
     if mode == "negocio":
-        pro = f'SUMIFS({VAL},{CAT},{ctx.cfg_item("c_nsai", 0)},{inyear})'
-        cards = [(2, 3, "ENTRADAS AVULSAS NO ANO", f'=SUMIFS({VAL},{TIPO},"Entrada",{inyear})', MONEY, T["pos"]),
-                 (4, 4, "DESPESAS NO ANO (SEM PRÓ-LABORE)", f'=SUMIFS({VAL},{TIPO},"Saída",{inyear})-{pro}', MONEY, T["neg"]),
-                 (5, 6, "PRÓ-LABORE RETIRADO", f"={pro}", MONEY, T["ink"])]
+        pro = f'SUMIFS({VAL},{CAT},{ctx.cfg_item("c_nsai", NBSAI - 1)},{inyear})'
+        cards = [(2, 3, "ENTRADAS NO ANO", f'=SUMIFS({VAL},{TIPO},"Entrada",{inyear})', MONEY, T["pos"]),
+                 (4, 4, "DESPESAS NO ANO (SEM RETIRADA)", f'=SUMIFS({VAL},{TIPO},"Saída",{inyear})-{pro}', MONEY, T["neg"]),
+                 (5, 6, "RETIRADA PESSOAL NO ANO", f"={pro}", MONEY, T["ink"])]
     else:
         cards = [(2, 3, "ENTRADAS NO ANO", f'=SUMIFS({VAL},{TIPO},"Entrada",{inyear})', MONEY, T["pos"]),
                  (4, 4, "SAÍDAS NO ANO", f'=SUMIFS({VAL},{TIPO},"Saída",{inyear})', MONEY, T["neg"]),
@@ -287,7 +285,7 @@ def lancamentos(ctx, key, *, area, title, subtitle, ent_key, sai_key, all_col_ke
                                 "que não existe mais na aba Config.", {"x_scale": 1.4, "y_scale": 1.2})
 
     # fórmulas de Tipo
-    ent_rng, sai_rng = ctx.cfg_list(ent_key, NENT), ctx.cfg_list(sai_key, NSAI)
+    ent_rng, sai_rng = ctx.cfg_list(ent_key, n_ent), ctx.cfg_list(sai_key, n_sai)
     tf = B.fmt(align="center", bold=True, font_size=9)
     for r in range(r0, r1 + 1):
         B.f(ws, A(r, 7), f'=IF($D{r}="","",IF(COUNTIF({ent_rng},$D{r})>0,"Entrada",'
@@ -316,7 +314,7 @@ def lancamentos(ctx, key, *, area, title, subtitle, ent_key, sai_key, all_col_ke
         "validate": "date", "criteria": "between", "minimum": dt.date(2000, 1, 1), "maximum": dt.date(2100, 12, 31),
         "input_title": "Data", "input_message": "Digite no formato dd/mm/aaaa.",
         "error_title": "Data inválida", "error_message": "Use uma data válida, ex.: 05/03/2026."})
-    allc = X(N["DADOS"], RNG(L["d_all_r0"], L[all_col_key], L["d_all_r0"] + 23, L[all_col_key]))
+    allc = X(N["DADOS"], RNG(L["d_all_r0"], L[all_col_key], L["d_all_r0"] + n_ent + n_sai - 1, L[all_col_key]))
     ws.data_validation(A(r0, 4) + ":" + A(r1, 4), {
         "validate": "list", "source": "=" + allc, "input_title": "Categoria",
         "input_message": "Escolha no menu suspenso (edite a lista na aba Config).",

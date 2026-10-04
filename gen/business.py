@@ -1,4 +1,4 @@
-"""Abas do NEGÓCIO (versão Autônomo/MEI): Recebimentos, Clientes, Impostos, Fluxo de Caixa,
+"""Abas do NEGÓCIO (versão Autônomo/MEI): A Receber, Impostos, Fluxo de Caixa,
 Painel Negócio, Painel Geral e blocos auxiliares em Dados."""
 import datetime as dt
 from lib import *
@@ -31,14 +31,14 @@ def selector(ctx, ws, sel_rc, key_hint):
     ws.set_row(CS, 8)
 
 
-# ===================================================================== RECEBIMENTOS
+# ===================================================================== A RECEBER
 def recebimentos(ctx):
     k, ws, B = "REC", ctx.ws["REC"], ctx.book
     L, CS, N = ctx.L, ctx.CS, ctx.N
     th = ctx.theme("negocio")
     widths = [12, 26, 34, 14, 13, 13, 17, 12, 9, 14, 14, 9]
-    ctx.page(k, widths, "💰 Recebimentos — cobranças e pagamentos de clientes",
-             "Registre cada cobrança com vencimento. Quando o cliente pagar, preencha a data do pagamento: o status é automático.",
+    ctx.page(k, widths, "💰 A Receber — vendas a prazo e cobranças",
+             "Vendeu fiado ou combinou prazo? Registre aqui com o vencimento. Quando o cliente pagar, preencha a data do pagamento: o status é automático.",
              area="negocio")
     hr, r0, r1 = L["r_hr"], L["r_r0"], L["r_r1"]
     ano, hoje = ctx.cfg("cfg_ano"), ctx.cfg("cfg_hoje")
@@ -78,13 +78,14 @@ def recebimentos(ctx):
     B.merge(ws, CS + 1, 7, CS + 1, 12, chk, B.fmt(font_size=9, bold=True, bg_color=T["bg"], indent=1, font_color=T["pos"]))
     ws.conditional_format(f"{A(CS + 1, 7)}:{A(CS + 1, 12)}", {"type": "text", "criteria": "begins with", "value": "⚠",
                                                               "format": B.fmt(font_color=T["warn"])})
-    heads = ["Data do serviço", "Cliente", "Descrição", "Valor (R$)", "Vencimento", "Data do pagamento",
+    heads = ["Data da venda", "Cliente", "Descrição", "Valor (R$)", "Vencimento", "Data do pagamento",
              "Forma", "Status", "Dias de atraso", "Em aberto", "Em atraso", "aux."]
     hf = ctx.f_head(th)
     ws.set_row(hr - 1, 30)
     for j, t in enumerate(heads):
         ws.write(hr - 1, 1 + j, t, hf)
     ws.write_comment(hr - 1, 6, "Preencha SÓ quando o cliente pagar. Vazio = ainda em aberto.", {"x_scale": 1.3})
+    ws.write_comment(hr - 1, 2, "Digite o nome do cliente (texto livre).", {"x_scale": 1.2})
     tf = B.fmt(align="center", bold=True, font_size=9)
     for r in range(r0, r1 + 1):
         B.f(ws, A(r, 9), f'=IF($E{r}="","",IF($G{r}<>"","Pago",IF($F{r}="","Pendente",IF({hoje}>$F{r},"Atrasado","Pendente"))))', tf)
@@ -113,10 +114,6 @@ def recebimentos(ctx):
                                                       "maximum": dt.date(2100, 12, 31), "error_title": "Data inválida",
                                                       "error_message": "Use uma data válida, ex.: 15/03/2026.",
                                                       "input_title": "Data", "input_message": "Formato dd/mm/aaaa."})
-    ws.data_validation(f"{A(r0, 3)}:{A(r1, 3)}", {"validate": "list", "ignore_blank": True,
-                                                   "source": "=" + reg(ctx, "CLI", L["cli_r0"], 2, NCLI),
-                                                   "input_title": "Cliente", "input_message": "Escolha na lista (cadastre na aba Clientes).",
-                                                   "error_title": "Cliente não cadastrado", "error_message": "Cadastre o cliente na aba Clientes primeiro."})
     ws.data_validation(f"{A(r0, 5)}:{A(r1, 5)}", {"validate": "decimal", "criteria": ">", "value": 0,
                                                    "error_title": "Valor inválido", "error_message": "Digite um número maior que zero."})
     ws.data_validation(f"{A(r0, 8)}:{A(r1, 8)}", {"validate": "list", "source": "=" + ctx.cfg_list("c_forma", NFORMA), "ignore_blank": True})
@@ -135,62 +132,6 @@ def recebimentos(ctx):
     ws.repeat_rows(hr - 1)
 
 
-# ===================================================================== CLIENTES
-def clientes(ctx):
-    k, ws, B = "CLI", ctx.ws["CLI"], ctx.book
-    L, CS, N = ctx.L, ctx.CS, ctx.N
-    th = ctx.theme("negocio")
-    widths = [28, 22, 30, 16, 11, 15, 15, 14, 14, 11, 14, 15]
-    ctx.page(k, widths, "🤝 Clientes — quem paga, quanto e quando",
-             "Cadastre o cliente (colunas amarelas). Os totais vêm da aba Recebimentos e se atualizam sozinhos.", area="negocio")
-    hr, r0, r1, tot = L["cli_hdr"], L["cli_r0"], L["cli_r1"], L["cli_tot"]
-    ano = ctx.cfg("cfg_ano")
-    rr = lambda c: X(N["REC"], RNG(L["r_r0"], c, L["r_r1"], c))
-    EMI, CLI, VAL, PAG, ABE, ATR = rr(2), rr(3), rr(5), rr(7), rr(11), rr(12)
-    heads = ["Cliente", "Contato", "E-mail / Telefone", "Origem", "Nº cobranças", "Faturado no ano", "Recebido no ano",
-             "A receber", "Em atraso", "% da receita", "Ticket médio", "Situação"]
-    ws.set_row(hr - 1, 30)
-    for j, t in enumerate(heads):
-        ws.write(hr - 1, 1 + j, t, ctx.f_head(th, align="left", indent=1) if j == 0 else ctx.f_head(th))
-    inp = ctx.f_input(align="left")
-    yr = lambda rng: f'{rng},">="&DATE({ano},1,1),{rng},"<"&DATE({ano}+1,1,1)'
-    for i in range(NCLI):
-        r = r0 + i
-        d = demo.CLIENTES[i] if ctx.demo and i < len(demo.CLIENTES) else None
-        for j in range(4):
-            ws.write(r - 1, 1 + j, d[j] if d else "", inp)
-        B.f(ws, A(r, 6), f'=IF($B{r}="","",COUNTIFS({CLI},$B{r},{yr(EMI)}))', ctx.f_calc("0", align="center"))
-        B.f(ws, A(r, 7), f'=IF($B{r}="","",SUMIFS({VAL},{CLI},$B{r},{yr(EMI)}))', ctx.f_calc(MONEY0))
-        B.f(ws, A(r, 8), f'=IF($B{r}="","",SUMIFS({VAL},{CLI},$B{r},{yr(PAG)}))', ctx.f_calc(MONEY0, bold=True))
-        B.f(ws, A(r, 9), f'=IF($B{r}="","",SUMIFS({ABE},{CLI},$B{r}))', ctx.f_calc(MONEY0))
-        B.f(ws, A(r, 10), f'=IF($B{r}="","",SUMIFS({ATR},{CLI},$B{r}))', ctx.f_calc(MONEY0))
-        B.f(ws, A(r, 11), f'=IF($B{r}="","",IF({A(tot, 8, True, True)}=0,0,H{r}/{A(tot, 8, True, True)}))', ctx.f_calc(PCT, align="center"))
-        B.f(ws, A(r, 12), f'=IF(OR($B{r}="",N(F{r})=0),"",G{r}/F{r})', ctx.f_calc(MONEY0))
-        B.f(ws, A(r, 13), f'=IF($B{r}="","",IF(J{r}>0,"✖ Em atraso",IF(I{r}>0,"● A receber",IF(H{r}>0,"✓ Em dia","—"))))',
-            ctx.f_calc(align="center", bold=True, font_size=9))
-    tf = lambda num=MONEY0: B.fmt(bold=True, bg_color=th["light"], top=1, top_color=th["mid"], num_format=num)
-    ws.write(tot - 1, 1, "TOTAL", B.fmt(bold=True, bg_color=th["light"], indent=1, top=1, top_color=th["mid"]))
-    for c in (2, 3, 4, 5, 13):
-        ws.write(tot - 1, c - 1, "", tf())
-    for c, num in [(6, "0"), (7, MONEY0), (8, MONEY0), (9, MONEY0), (10, MONEY0)]:
-        B.f(ws, A(tot, c), f"=SUM({A(r0, c)}:{A(r1, c)})", tf(num))
-    B.f(ws, A(tot, 11), f"=IF({A(tot, 8)}=0,0,1)", tf(PCT))
-    B.f(ws, A(tot, 12), f'=IF({A(tot, 6)}=0,"",{A(tot, 7)}/{A(tot, 6)})', tf())
-    pct = f"{A(r0, 11)}:{A(r1, 11)}"
-    msg = (f'=IF({A(tot, 8)}=0,"",IF(MAX({pct})>0.5,"⚠ Concentração alta: um único cliente responde por "&TEXT(MAX({pct}),"0%")&'
-           f'" da receita recebida. Diversificar reduz o risco.","✓ Receita bem distribuída entre clientes (maior cliente: "&TEXT(MAX({pct}),"0%")&")."))')
-    B.merge(ws, tot + 2, 2, tot + 2, 13, msg, B.fmt(bold=True, indent=1, font_size=10, bg_color=T["bg"]))
-    ctx.msg_conc = X(N[k], AA(tot + 2, 2))
-    ws.conditional_format(A(tot + 2, 2), {"type": "text", "criteria": "begins with", "value": "⚠", "format": B.fmt(font_color=T["warn"], bg_color=T["warn_bg"])})
-    ws.conditional_format(A(tot + 2, 2), {"type": "text", "criteria": "begins with", "value": "✓", "format": B.fmt(font_color=T["pos"], bg_color=T["pos_bg"])})
-    sc = f"{A(r0, 13)}:{A(r1, 13)}"
-    for txt, fc, bg in [("Em atraso", T["neg"], T["neg_bg"]), ("A receber", T["warn"], T["warn_bg"]), ("Em dia", T["pos"], T["pos_bg"])]:
-        ws.conditional_format(sc, {"type": "text", "criteria": "containing", "value": txt, "format": B.fmt(font_color=fc, bg_color=bg)})
-    ws.conditional_format(f"{A(r0, 10)}:{A(r1, 10)}", {"type": "cell", "criteria": ">", "value": 0, "format": B.fmt(font_color=T["neg"], bold=True)})
-    ws.conditional_format(pct, {"type": "formula", "criteria": f"=AND(ISNUMBER({A(r0, 11)}),{A(r0, 11)}>0.5)", "format": B.fmt(font_color=T["warn"], bold=True)})
-    ws.freeze_panes(hr, 2)
-
-
 # ===================================================================== IMPOSTOS
 def impostos(ctx):
     k, ws, B = "IMP", ctx.ws["IMP"], ctx.book
@@ -205,7 +146,7 @@ def impostos(ctx):
     sec = ctx.f_section(th)
     B.merge(ws, CS, 2, CS, 6, "PARÂMETROS", sec)
     params = [("Regime tributário", "MEI", None, ["MEI", "Simples Nacional", "Outro regime"]),
-              ("Atividade do MEI", "Serviços", None, ["Comércio e indústria", "Serviços", "Comércio e serviços"]),
+              ("Atividade do MEI", "Comércio e indústria" if ctx.demo else "Comércio e serviços", None, ["Comércio e indústria", "Serviços", "Comércio e serviços"]),
               ("Salário mínimo vigente (R$)", 1621, MONEY, None),
               ("% de INSS do MEI (sobre o salário mínimo)", 0.05, "0%", None),
               ("ICMS fixo — comércio/indústria (R$)", 1, MONEY, None),
@@ -242,7 +183,7 @@ def impostos(ctx):
     lneg = N["LNEG"]
     ln = lambda c: X(lneg, RNG(L["l_r0"], c, L["l_r1"], c))
     rec = lambda c: X(N["REC"], RNG(L["r_r0"], c, L["r_r1"], c))
-    slot1 = ctx.cfg_item("c_nent", 0)
+    slot1, slot2 = ctx.cfg_item("c_nent", 0), ctx.cfg_item("c_nent", 1)   # Vendas e Pagamento mensal = faturamento
     heads = ["Competência", "Receita recebida", "Imposto devido", "Vencimento", "Data do pagamento", "Valor pago (se diferente)",
              "Pago (R$)", "Status", "Em aberto", "Observação", "Receita acumulada", "Limite do período"]
     ws.set_row(hr - 1, 32)
@@ -253,7 +194,8 @@ def impostos(ctx):
         r = r0 + i
         B.f(ws, A(r, 2), f"=DATE({ano},{i + 1},1)", ctx.f_calc("mmm/yyyy", align="center", bold=True))
         B.f(ws, A(r, 3), (f'=SUMIFS({rec(5)},{rec(7)},">="&$B{r},{rec(7)},"<"&EDATE($B{r},1))'
-                          f'+IF({slot1}="",0,SUMIFS({ln(6)},{ln(4)},{slot1},{ln(2)},">="&$B{r},{ln(2)},"<"&EDATE($B{r},1)))'),
+                          f'+IF({slot1}="",0,SUMIFS({ln(6)},{ln(4)},{slot1},{ln(2)},">="&$B{r},{ln(2)},"<"&EDATE($B{r},1)))'
+                          f'+IF({slot2}="",0,SUMIFS({ln(6)},{ln(4)},{slot2},{ln(2)},">="&$B{r},{ln(2)},"<"&EDATE($B{r},1)))'),
             ctx.f_calc(MONEY0))
         B.f(ws, A(r, 4), f'=IF($B{r}<DATE({ano},{inicio},1),0,IF({regime}="MEI",{das},ROUND($C{r}*{aliq},2)))', ctx.f_calc(MONEY0, bold=True))
         B.f(ws, A(r, 5), f"=DATE(YEAR($B{r}),MONTH($B{r})+1,20)", ctx.f_calc(DATE, align="center"))
@@ -293,7 +235,7 @@ def impostos(ctx):
     B.merge(ws, CS, 8, CS, 13, "LIMITE ANUAL DO MEI", ctx.f_section(th))
     acum = f"IF({R}=0,0,INDEX({RNG(r0, 12, r0 + 11, 12)},{R}))"
     prop = f"({limite}/12*(13-{inicio}))"
-    items = [("Receita bruta acumulada (até o mês de referência)", f"={acum}", MONEY),
+    items = [("Faturamento acumulado (até o mês de referência)", f"={acum}", MONEY),
              ("Limite proporcional ao período de atividade", f"={prop}", MONEY),
              ("% do limite utilizado", f"=IF({prop}=0,0,{acum}/{prop})", "0%"),
              ("Projeção de faturamento no ano (ritmo atual)", f"=IF({R}=0,0,{acum}/MAX(1,{R}-{inicio}+1)*(13-{inicio}))", MONEY),
@@ -340,7 +282,7 @@ def fluxo(ctx):
     widths = [40] + [12.5] * 12 + [15]
     ctx.page(k, widths, "📈 Fluxo de caixa do negócio — realizado e projetado",
              "Até o mês de referência os números são REALIZADOS; depois, PROJETADOS (a receber em aberto, DAS em aberto, "
-             "média de despesas e pró-labore previsto).", area="negocio")
+             "média de despesas e retirada prevista).", area="negocio")
     ano, hoje, R = ctx.cfg("cfg_ano"), ctx.cfg("cfg_hoje"), "" + ctx.dados("d_R")
     sec = ctx.f_section(th)
     B.merge(ws, CS, 2, CS, 4, "PREMISSAS", sec)
@@ -348,8 +290,8 @@ def fluxo(ctx):
     lab = lambda: B.fmt(indent=1, bottom=1, bottom_color=T["line"])
     B.merge(ws, pr, 2, pr, 2, "Saldo do caixa em 1º de janeiro (R$)", lab())
     ws.merge_range(pr - 1, 2, pr - 1, 3, 4000 if ctx.demo else 0, ctx.f_input(MONEY, align="center"))
-    B.merge(ws, pr + 1, 2, pr + 1, 2, "Pró-labore mensal previsto (R$)", lab())
-    ws.merge_range(pr, 2, pr, 3, 4500 if ctx.demo else 0, ctx.f_input(MONEY, align="center"))
+    B.merge(ws, pr + 1, 2, pr + 1, 2, "Retirada pessoal mensal prevista (R$)", lab())
+    ws.merge_range(pr, 2, pr, 3, 3400 if ctx.demo else 0, ctx.f_input(MONEY, align="center"))
     B.merge(ws, pr + 2, 2, pr + 2, 2, "Despesa operacional média (R$)", lab())
     saldo0, prolab_prev, opex_avg = X(N[k], AA(pr, 3)), X(N[k], AA(pr + 1, 3)), X(N[k], AA(pr + 2, 3))
     B.merge(ws, pr + 3, 2, pr + 3, 2, "Mês de referência (último realizado)", lab())
@@ -386,14 +328,14 @@ def fluxo(ctx):
     rc = lambda c: X(N["REC"], RNG(L["r_r0"], c, L["r_r1"], c))
     im = lambda c: X(N["IMP"], RNG(L["i_r0"], c, L["i_r0"] + 11, c))
     # linhas principais
-    R_ = dict(ini=f0, rec=f0 + 1, avu=f0 + 2, out=f0 + 3, nov=f0 + 4, ent=f0 + 5, dsp=f0 + 6, imp=f0 + 7, pro=f0 + 8,
-              sai=f0 + 9, var=f0 + 10, fim=f0 + 11, res=f0 + 12, mar=f0 + 13)
+    R_ = dict(ini=f0, rec=f0 + 1, ven=f0 + 2, men=f0 + 3, out=f0 + 4, nov=f0 + 5, ent=f0 + 6, dsp=f0 + 7, imp=f0 + 8,
+              pro=f0 + 9, sai=f0 + 10, var=f0 + 11, fim=f0 + 12, res=f0 + 13, mar=f0 + 14)
     L["f_rows"] = R_
-    labels = {"ini": ("Saldo inicial do mês", "n"), "rec": ("(+) Recebimentos de clientes", "n"),
-              "avu": ("(+) Receitas avulsas", "n"), "out": ("(+) Outras entradas", "n"),
+    labels = {"ini": ("Saldo inicial do mês", "n"), "rec": ("(+) Cobranças recebidas (A Receber)", "n"),
+              "ven": ("(+) Vendas", "n"), "men": ("(+) Pagamento mensal", "n"), "out": ("(+) Outras entradas", "n"),
               "nov": ("(+) Receita nova prevista (média × %)", "n"),
               "ent": ("TOTAL DE ENTRADAS", "t+"), "dsp": ("(−) Despesas operacionais", "n"),
-              "imp": ("(−) Impostos (DAS / %)", "n"), "pro": ("(−) Pró-labore / retiradas", "n"),
+              "imp": ("(−) Impostos (DAS / %)", "n"), "pro": ("(−) Retirada pessoal", "n"),
               "sai": ("TOTAL DE SAÍDAS", "t-"), "var": ("Variação do caixa no mês", "b"),
               "fim": ("💰 SALDO FINAL DO MÊS", "big"), "res": ("Resultado operacional (lucro de caixa)", "b"),
               "mar": ("Margem de lucro", "p")}
@@ -423,30 +365,31 @@ def fluxo(ctx):
         B.f(ws, cell("rec"),
             f'=IF({m}<={R},SUMIFS({rc(5)},{rc(7)},">="&{D(c)},{rc(7)},"<"&{nxt(c)}),'
             f'IF({m}={R}+1,SUMIFS({rc(11)},{rc(6)},"<"&{nxt(c)}),SUMIFS({rc(11)},{rc(6)},">="&{D(c)},{rc(6)},"<"&{nxt(c)})))', plain)
-        B.f(ws, cell("avu"), f"=IF({m}<={R},{det_e(0)},0)", plain)
-        B.f(ws, cell("out"), f"=IF({m}<={R},SUM({det_e(1)}:{det_e(7)}),0)", plain)
+        B.f(ws, cell("ven"), f"=IF({m}<={R},{det_e(0)},0)", plain)
+        B.f(ws, cell("men"), f"=IF({m}<={R},{det_e(1)},0)", plain)
+        B.f(ws, cell("out"), f"=IF({m}<={R},SUM({det_e(2)}:{det_e(NBENT - 1)}),0)", plain)
         B.f(ws, cell("nov"), f"=IF({m}<={R},0,{rev_avg}*{pct_new})", plain)
         B.f(ws, cell("ent"), f"=SUM({A(R_['rec'], c)}:{A(R_['nov'], c)})", B.fmt(bold=True, num_format=MONEY0, bg_color=T["pos_bg"], top=1, top_color=T["pos"]))
         B.f(ws, cell("dsp"), f"=IF({m}<={R},{A(ox, c)},{opex_avg})", plain)
         B.f(ws, cell("imp"),
             f'=IF({m}<={R},SUMIFS({im(8)},{im(6)},">="&{D(c)},{im(6)},"<"&{nxt(c)}),'
             f'IF({m}={R}+1,SUMIFS({im(10)},{im(5)},"<"&{nxt(c)}),SUMIFS({im(10)},{im(5)},">="&{D(c)},{im(5)},"<"&{nxt(c)})))', plain)
-        B.f(ws, cell("pro"), f"=IF({m}<={R},{det_s(0)},{prolab_prev})", plain)
+        B.f(ws, cell("pro"), f"=IF({m}<={R},{det_s(NBSAI - 1)},{prolab_prev})", plain)
         B.f(ws, cell("sai"), f"=SUM({A(R_['dsp'], c)}:{A(R_['pro'], c)})", B.fmt(bold=True, num_format=MONEY0, bg_color=T["neg_bg"], top=1, top_color=T["neg"]))
         B.f(ws, cell("var"), f"={A(R_['ent'], c)}-{A(R_['sai'], c)}", ctx.f_calc(MONEY0, bold=True))
         B.f(ws, cell("fim"), f"={A(R_['ini'], c)}+{A(R_['var'], c)}", B.fmt(bold=True, font_size=11, num_format=MONEY0, top=2, top_color=th["mid"], bottom=2, bottom_color=th["mid"], bg_color=th["light"]))
         B.f(ws, cell("res"), f"={A(R_['ent'], c)}-{A(R_['dsp'], c)}-{A(R_['imp'], c)}", ctx.f_calc(MONEY0, bold=True))
-        B.f(ws, cell("mar"), f'=IF(({A(R_["rec"], c)}+{A(R_["avu"], c)}+{A(R_["nov"], c)})=0,"",{A(R_["res"], c)}/({A(R_["rec"], c)}+{A(R_["avu"], c)}+{A(R_["nov"], c)}))',
+        B.f(ws, cell("mar"), f'=IF(({A(R_["rec"], c)}+{A(R_["ven"], c)}+{A(R_["men"], c)}+{A(R_["nov"], c)})=0,"",{A(R_["res"], c)}/({A(R_["rec"], c)}+{A(R_["ven"], c)}+{A(R_["men"], c)}+{A(R_["nov"], c)}))',
             ctx.f_calc(PCT, bold=True, align="right"))
     # coluna Ano
     cA = 15
-    for key in ("rec", "avu", "out", "nov", "dsp", "imp", "pro", "var", "res"):
+    for key in ("rec", "ven", "men", "out", "nov", "dsp", "imp", "pro", "var", "res"):
         B.f(ws, A(R_[key], cA), f"=SUM({A(R_[key], 3)}:{A(R_[key], 14)})", ctx.f_calc(MONEY0, bold=True))
     B.f(ws, A(R_["ent"], cA), f"=SUM({A(R_['ent'], 3)}:{A(R_['ent'], 14)})", B.fmt(bold=True, num_format=MONEY0, bg_color=T["pos_bg"], top=1, top_color=T["pos"]))
     B.f(ws, A(R_["sai"], cA), f"=SUM({A(R_['sai'], 3)}:{A(R_['sai'], 14)})", B.fmt(bold=True, num_format=MONEY0, bg_color=T["neg_bg"], top=1, top_color=T["neg"]))
     B.f(ws, A(R_["ini"], cA), f"={A(R_['ini'], 3)}", ctx.f_calc(MONEY0, font_color=T["muted"]))
     B.f(ws, A(R_["fim"], cA), f"={A(R_['fim'], 14)}", B.fmt(bold=True, font_size=11, num_format=MONEY0, top=2, top_color=th["mid"], bottom=2, bottom_color=th["mid"], bg_color=th["light"]))
-    B.f(ws, A(R_["mar"], cA), f'=IF(({A(R_["rec"], cA)}+{A(R_["avu"], cA)}+{A(R_["nov"], cA)})=0,"",{A(R_["res"], cA)}/({A(R_["rec"], cA)}+{A(R_["avu"], cA)}+{A(R_["nov"], cA)}))', ctx.f_calc(PCT, bold=True, align="right"))
+    B.f(ws, A(R_["mar"], cA), f'=IF(({A(R_["rec"], cA)}+{A(R_["ven"], cA)}+{A(R_["men"], cA)}+{A(R_["nov"], cA)})=0,"",{A(R_["res"], cA)}/({A(R_["rec"], cA)}+{A(R_["ven"], cA)}+{A(R_["men"], cA)}+{A(R_["nov"], cA)}))', ctx.f_calc(PCT, bold=True, align="right"))
     for key in ("var", "fim", "res"):
         cf_pos_neg(ws, B, f"{A(R_[key], 3)}:{A(R_[key], 15)}")
     mr = f"{A(R_['mar'], 3)}:{A(R_['mar'], 15)}"
@@ -457,8 +400,9 @@ def fluxo(ctx):
     rng_ox = f"{A(ox, 3, True, True)}:{A(ox, 14, True, True)}"
     B.merge(ws, pr + 2, 3, pr + 2, 4, f"=IF({R}=0,0,SUMPRODUCT((COLUMN({rng_ox})-2<={R})*{rng_ox})/{R})", B.fmt(num_format=MONEY, align="center", bottom=1, bottom_color=T["line"], bold=True))
     rr_rec = f"{A(R_['rec'], 3, True, True)}:{A(R_['rec'], 14, True, True)}"
-    rr_avu = f"{A(R_['avu'], 3, True, True)}:{A(R_['avu'], 14, True, True)}"
-    B.merge(ws, pr + 4, 3, pr + 4, 4, f"=IF({R}=0,0,SUMPRODUCT((COLUMN({rr_rec})-2<={R})*({rr_rec}+{rr_avu}))/{R})",
+    rr_avu = f"{A(R_['ven'], 3, True, True)}:{A(R_['ven'], 14, True, True)}"
+    rr_men = f"{A(R_['men'], 3, True, True)}:{A(R_['men'], 14, True, True)}"
+    B.merge(ws, pr + 4, 3, pr + 4, 4, f"=IF({R}=0,0,SUMPRODUCT((COLUMN({rr_rec})-2<={R})*({rr_rec}+{rr_avu}+{rr_men}))/{R})",
             B.fmt(num_format=MONEY, align="center", bottom=1, bottom_color=T["line"], bold=True))
     # DETALHE (realizado por categoria)
     B.merge(ws, L["f_detsec"], 2, L["f_detsec"], 15, "DETALHE REALIZADO POR CATEGORIA (lançamentos da aba Lanç. Negócio)", ctx.f_section(th))
@@ -466,8 +410,8 @@ def fluxo(ctx):
     for m in range(1, 13):
         B.f(ws, A(L["f_dethdr"], 2 + m), f"={A(hdr, 2 + m)}", ctx.f_head(th))
     ws.write(L["f_dethdr"] - 1, 14, "Ano", ctx.f_head(th))
-    B.merge(ws, e0 - 1, 2, e0 - 1, 15, "▲ Entradas (receitas de clientes ficam em Recebimentos)", B.fmt(bold=True, bg_color=T["pos_bg"], font_color=T["pos"], indent=1))
-    B.merge(ws, s0 - 1, 2, s0 - 1, 15, "▼ Saídas (a 1ª categoria é o pró-labore)", B.fmt(bold=True, bg_color=T["neg_bg"], font_color=T["neg"], indent=1))
+    B.merge(ws, e0 - 1, 2, e0 - 1, 15, "▲ Entradas (vendas a prazo ficam na aba A Receber)", B.fmt(bold=True, bg_color=T["pos_bg"], font_color=T["pos"], indent=1))
+    B.merge(ws, s0 - 1, 2, s0 - 1, 15, "▼ Saídas (a última categoria é a retirada pessoal)", B.fmt(bold=True, bg_color=T["neg_bg"], font_color=T["neg"], indent=1))
 
     def detail(first, n, ckey):
         for i in range(n):
@@ -477,11 +421,11 @@ def fluxo(ctx):
                 c = 2 + m
                 B.f(ws, A(r, c), f'=IF($B{r}="",0,SUMIFS({ln(6)},{ln(4)},$B{r},{ln(2)},">="&{D(c)},{ln(2)},"<"&{nxt(c)}))', ctx.f_calc(MONEY0))
             B.f(ws, A(r, 15), f"=SUM({A(r, 3)}:{A(r, 14)})", ctx.f_calc(MONEY0, bold=True))
-    detail(e0, NENT, "c_nent")
-    detail(s0, NSAI, "c_nsai")
+    detail(e0, NBENT, "c_nent")
+    detail(s0, NBSAI, "c_nsai")
     tf = lambda: B.fmt(bold=True, bg_color=T["bg"], num_format=MONEY0, top=1, top_color=T["line2"])
-    for r, lbl, a, b in [(et, "Total de entradas avulsas", e0, e0 + NENT - 1), (st, "Total de saídas (inclui pró-labore)", s0, s0 + NSAI - 1),
-                         (ox, "Despesas operacionais (sem pró-labore)", s0 + 1, s0 + NSAI - 1)]:
+    for r, lbl, a, b in [(et, "Total de entradas lançadas", e0, e0 + NBENT - 1), (st, "Total de saídas (inclui retirada)", s0, s0 + NBSAI - 1),
+                         (ox, "Despesas operacionais (sem retirada)", s0, s0 + NBSAI - 2)]:
         ws.write(r - 1, 1, lbl, B.fmt(bold=True, bg_color=T["bg"], indent=1, top=1, top_color=T["line2"]))
         for c in range(3, 16):
             B.f(ws, A(r, c), f"=SUM({A(a, c)}:{A(b, c)})", tf())
@@ -536,70 +480,39 @@ def dados_biz(ctx):
     # lista combinada negócio
     cc, r0 = L["d_nall_c"], L["d_all_r0"]
     ws.write(CS - 1, cc - 1, "LISTA COMBINADA (negócio)", sec)
-    for i in range(NENT):
+    for i in range(NBENT):
         B.f(ws, A(r0 + i, cc), f'=IF({ctx.cfg_item("c_nent", i)}="","",{ctx.cfg_item("c_nent", i)})', cf)
-    for i in range(NSAI):
-        B.f(ws, A(r0 + NENT + i, cc), f'=IF({ctx.cfg_item("c_nsai", i)}="","",{ctx.cfg_item("c_nsai", i)})', cf)
-    # categorias de despesa do negócio (15 + impostos) no mês do Painel Negócio
+    for i in range(NBSAI):
+        B.f(ws, A(r0 + NBENT + i, cc), f'=IF({ctx.cfg_item("c_nsai", i)}="","",{ctx.cfg_item("c_nsai", i)})', cf)
+    # despesas do negócio no mês do Painel Negócio: categorias operacionais + DAS (rosca)
     h = L["b_cat0"] - 1
-    for j, t in enumerate(["Despesa do negócio", "Valor no mês", "Chave (aux)"]):
+    for j, t in enumerate(["Despesa do negócio", "Valor no mês"]):
         ws.write(h - 1, 1 + j, t, hd)
     c0 = L["b_cat0"]
-    for i in range(16):
+    nop = NBSAI - 1
+    for i in range(nop):
         r = c0 + i
-        if i < 15:
-            B.f(ws, A(r, 2), f'=IF({ctx.cfg_item("c_nsai", i + 1)}="","",{ctx.cfg_item("c_nsai", i + 1)})', cf)
-            B.f(ws, A(r, 3), f'=IF({A(r, 2)}="",0,IF({mn}<={R},INDEX({fl(L["f_sai0"] + i + 1)},{mn}),0))', mon)
-        else:
-            ws.write(r - 1, 1, "Impostos (DAS)", cf)
-            B.f(ws, A(r, 3), f'=IF({mn}<={R},INDEX({fl(R_["imp"])},{mn}),0)', mon)
-        B.f(ws, A(r, 4), f"=IF({A(r, 3)}>0,{A(r, 3)}+ROW()/1000000,0)", ctx.f_calc("0.000000"))
-    c1 = c0 + 15
-    rg = lambda c, a=c0, b=c1: RNG(a, c, b, c)
-    ws.write(h - 1, 7, "#", hd)
-    for j, t in enumerate(["Posição", "Despesa", "Valor"]):
-        ws.write(h - 1, 8 + j, t, hd)
-    for kx in range(8):
-        r = c0 + kx
-        ws.write(r - 1, 7, kx + 1, ctx.f_calc("0", align="center"))
-        B.f(ws, A(r, 9), f"=IF(LARGE({rg(4)},{kx + 1})>0,MATCH(LARGE({rg(4)},{kx + 1}),{rg(4)},0),0)", num)
-        B.f(ws, A(r, 10), f'=IF({A(r, 9)}>0,INDEX({rg(2)},{A(r, 9)}),"—")', cf)
-        B.f(ws, A(r, 11), f"=IF({A(r, 9)}>0,INDEX({rg(3)},{A(r, 9)}),0)", mon)
-    ws.write(h - 1, 12, "Rosca – despesa", hd)
-    ws.write(h - 1, 13, "Valor", hd)
-    for kx in range(7):
-        B.f(ws, A(c0 + kx, 13), f"={A(c0 + kx, 10)}", cf)
-        B.f(ws, A(c0 + kx, 14), f"={A(c0 + kx, 11)}", mon)
-    ws.write(c0 + 6, 12, "Outras despesas", cf)
+        B.f(ws, A(r, 2), f'=IF({ctx.cfg_item("c_nsai", i)}="","",{ctx.cfg_item("c_nsai", i)})', cf)
+        B.f(ws, A(r, 3), f'=IF({A(r, 2)}="",0,IF({mn}<={R},INDEX({fl(L["f_sai0"] + i)},{mn}),0))', mon)
+    r = c0 + nop
+    ws.write(r - 1, 1, "Impostos (DAS)", cf)
+    B.f(ws, A(r, 3), f'=IF({mn}<={R},INDEX({fl(R_["imp"])},{mn}),0)', mon)
     r, c = L["d_btot"]
     ws.write(r - 1, 1, "Total de despesas (mês do Painel Negócio)", cf)
-    B.f(ws, A(r, c), f"=SUM({rg(3)})", mon)
-    B.f(ws, A(c0 + 7, 14), f"=MAX(0,{A(r, c)}-SUM({A(c0, 14)}:{A(c0 + 6, 14)}))", mon)
+    B.f(ws, A(r, c), f"=SUM({RNG(c0, 3, c0 + nop, 3)})", mon)
     r, c = L["d_btitle"]
     ws.write(r - 1, 1, "Título da rosca (negócio)", cf)
     B.f(ws, A(r, c), f'="Onde o negócio gastou — "&INDEX({mlist},{mn})', cf)
-    # ranking de clientes
-    h2 = L["b_cli0"] - 1
-    for j, t in enumerate(["Cliente", "Recebido no ano", "Chave (aux)"]):
-        ws.write(h2 - 1, 1 + j, t, hd)
-    k0 = L["b_cli0"]
-    for i in range(NCLI):
-        r = k0 + i
-        cr = X(N["CLI"], AA(L["cli_r0"] + i, 2))
-        B.f(ws, A(r, 2), f'=IF({cr}="","",{cr})', cf)
-        B.f(ws, A(r, 3), f'=IF({A(r, 2)}="",0,N({X(N["CLI"], AA(L["cli_r0"] + i, 8))}))', mon)
-        B.f(ws, A(r, 4), f"=IF({A(r, 3)}>0,{A(r, 3)}+ROW()/1000000,0)", ctx.f_calc("0.000000"))
-    k1 = k0 + NCLI - 1
-    kg = lambda c: RNG(k0, c, k1, c)
-    ws.write(h2 - 1, 7, "#", hd)
-    for j, t in enumerate(["Posição", "Cliente", "Recebido"]):
-        ws.write(h2 - 1, 8 + j, t, hd)
-    for kx in range(8):
-        r = k0 + kx
-        ws.write(r - 1, 7, kx + 1, ctx.f_calc("0", align="center"))
-        B.f(ws, A(r, 9), f"=IF(LARGE({kg(4)},{kx + 1})>0,MATCH(LARGE({kg(4)},{kx + 1}),{kg(4)},0),0)", num)
-        B.f(ws, A(r, 10), f'=IF({A(r, 9)}>0,INDEX({kg(2)},{A(r, 9)}),"—")', cf)
-        B.f(ws, A(r, 11), f"=IF({A(r, 9)}>0,INDEX({kg(3)},{A(r, 9)}),0)", mon)
+    # origem do faturamento no ano (até o mês de referência) — gráfico de barras
+    o0 = L["b_orig0"]
+    ws.write(o0 - 2, 1, "Origem do faturamento (ano)", hd)
+    ws.write(o0 - 2, 2, "Valor", hd)
+    ytd = lambda key: f"SUMPRODUCT((COLUMN({fl(R_[key])})-2<={R})*{fl(R_[key])})"
+    ws.write(o0 - 1, 1, "Cobranças recebidas (A Receber)", cf)
+    B.f(ws, A(o0, 3), f"={ytd('rec')}", mon)
+    for i, key in enumerate(("ven", "men")):
+        B.f(ws, A(o0 + 1 + i, 2), f'=IF({ctx.cfg_item("c_nent", i)}="","",{ctx.cfg_item("c_nent", i)})', cf)
+        B.f(ws, A(o0 + 1 + i, 3), f"={ytd(key)}", mon)
     # cobranças em atraso (top 5)
     h3 = L["b_atr0"] - 1
     for j, t in enumerate(["#", "Posição", "Cliente", "Descrição", "Vencimento", "Dias", "Valor"]):
@@ -624,7 +537,7 @@ def dados_biz(ctx):
     rrow = lambda row, c: X(ra, AA(row, c))
     fx = lambda key, c: X(N["FLUXO"], AA(R_[key], c))
     defs = [
-        ("rec", "Receita bruta (clientes + avulsas)", lambda c, m: f"=IF({m}<={R},{fx('rec', c)}+{fx('avu', c)},0)"),
+        ("rec", "Faturamento (A Receber + vendas + pagamento mensal)", lambda c, m: f"=IF({m}<={R},{fx('rec', c)}+{fx('ven', c)}+{fx('men', c)},0)"),
         ("desp", "Despesas + impostos", lambda c, m: f"=IF({m}<={R},{fx('dsp', c)}+{fx('imp', c)},0)"),
         ("lucro", "Lucro de caixa", lambda c, m: f"=IF({m}<={R},{fx('res', c)},0)"),
         ("sreal", "Saldo realizado", lambda c, m: f"=IF({m}<={R},{fx('fim', c)},0)"),
@@ -637,7 +550,7 @@ def dados_biz(ctx):
         ("neg", "Flag: saldo de caixa negativo", lambda c, m: f"=IF({fx('fim', c)}<0,{m},99)"),
         ("op", "Despesas operacionais", lambda c, m: f"=IF({m}<={R},{fx('dsp', c)},0)"),
         ("imp", "Impostos pagos", lambda c, m: f"=IF({m}<={R},{fx('imp', c)},0)"),
-        ("pro", "Pró-labore pago", lambda c, m: f"=IF({m}<={R},{fx('pro', c)},0)"),
+        ("pro", "Retirada pessoal paga", lambda c, m: f"=IF({m}<={R},{fx('pro', c)},0)"),
     ]
     for key, label, fn in defs:
         r = ser[key]
@@ -650,7 +563,7 @@ def dados_biz(ctx):
     ws.write(d0 - 2, 2, "Valor", hd)
     sm = lambda key: f"SUM({RNG(ser[key], 3, ser[key], 14)})"
     rows = [("Despesas operacionais", f"={sm('op')}"), ("Impostos", f"={sm('imp')}"),
-            ("Pró-labore (suas retiradas)", f"={sm('pro')}"),
+            ("Retirada pessoal (seu pró-labore)", f"={sm('pro')}"),
             ("Lucro retido no caixa", f"=MAX(0,{sm('rec')}-{sm('op')}-{sm('imp')}-{sm('pro')})")]
     for i, (lbl, f) in enumerate(rows):
         ws.write(d0 + i - 1, 1, lbl, cf)
@@ -664,7 +577,7 @@ def painel_negocio(ctx):
     th = ctx.theme("negocio")
     nome = ctx.cfg("cfg_neg")
     ctx.page(k, [11] * 12, f'="💼 Painel Negócio — "&{nome}',
-             "Receita, despesas, lucro, clientes, cobranças em atraso e limite do MEI — tudo do mês escolhido.", area="negocio", bg=True, landscape=False, one_page=True)
+             "Faturamento, despesas, lucro, cobranças em atraso e limite do MEI — tudo do mês escolhido.", area="negocio", bg=True, landscape=False, one_page=True)
     selector(ctx, ws, L["pn_sel"], "← escolha o mês; os valores só aparecem até o mês de referência (hoje)")
     wb = ctx.book.wb
     m = ctx.dados("d_mneg")
@@ -681,7 +594,7 @@ def painel_negocio(ctx):
         return (f'=IF({m}=1,"—",IF({sxp(key)}=0,"—",IF({sx(key)}>={sxp(key)},"▲ ","▼ ")&'
                 f'TEXT(ABS({sx(key)}/{sxp(key)}-1),"0%")&" vs mês anterior"))')
 
-    kpi_card(ctx, ws, r, 2, 3, "RECEITA DO MÊS", f"={sx('rec')}", MONEY_INT, delta("rec"), None, T["ent"])
+    kpi_card(ctx, ws, r, 2, 3, "FATURAMENTO DO MÊS", f"={sx('rec')}", MONEY_INT, delta("rec"), None, T["ent"])
     kpi_card(ctx, ws, r, 4, 5, "DESPESAS + IMPOSTOS", f"={sx('desp')}", MONEY_INT, delta("desp"), None, T["sai"])
     kpi_card(ctx, ws, r, 6, 7, "LUCRO DE CAIXA", f"={sx('lucro')}", MONEY_INT,
              f'=IF({sx("rec")}=0,"—","Margem de "&TEXT({sx("lucro")}/{sx("rec")},"0%"))', None, T["saldo"])
@@ -713,14 +626,14 @@ def painel_negocio(ctx):
     hs = L["b_serh"]
     cats = f"={X(dd, RNG(hs, 3, hs, 14))}"
     col = wb.add_chart({"type": "column"})
-    col.add_series({"name": "Receita", "categories": cats, "values": f"={X(dd, RNG(ser['rec'], 3, ser['rec'], 14))}", "fill": {"color": T["ent"]}, "gap": 70, "overlap": -5})
+    col.add_series({"name": "Faturamento", "categories": cats, "values": f"={X(dd, RNG(ser['rec'], 3, ser['rec'], 14))}", "fill": {"color": T["ent"]}, "gap": 70, "overlap": -5})
     col.add_series({"name": "Despesas + impostos", "categories": cats, "values": f"={X(dd, RNG(ser['desp'], 3, ser['desp'], 14))}", "fill": {"color": T["sai"]}})
     col.add_series({"name": "Lucro de caixa", "categories": cats, "values": f"={X(dd, RNG(ser['lucro'], 3, ser['lucro'], 14))}", "fill": {"color": T["saldo"]}})
-    style_chart(col, "Receita × Despesas × Lucro — mês a mês", 484, 320)
+    style_chart(col, "Faturamento × Despesas × Lucro — mês a mês", 484, 320)
     chart_pos(ws, col, r1, True)
     dn = wb.add_chart({"type": "doughnut"})
     c0 = L["b_cat0"]
-    dn.add_series({"name": "Despesas do mês", "categories": f"={X(dd, RNG(c0, 13, c0 + 7, 13))}", "values": f"={X(dd, RNG(c0, 14, c0 + 7, 14))}",
+    dn.add_series({"name": "Despesas do mês", "categories": f"={X(dd, RNG(c0, 2, c0 + NBSAI - 1, 2))}", "values": f"={X(dd, RNG(c0, 3, c0 + NBSAI - 1, 3))}",
                    "points": [{"fill": {"color": c}} for c in PALETTE],
                    "data_labels": {"percentage": True, "font": {"name": FONT, "size": 8, "color": "#FFFFFF", "bold": True}}})
     dn.set_hole_size(52)
@@ -729,11 +642,11 @@ def painel_negocio(ctx):
     chart_pos(ws, dn, r1, False)
     r2 = r1 + 16
     bar = wb.add_chart({"type": "bar"})
-    k0 = L["b_cli0"]
-    bar.add_series({"name": "Recebido no ano", "categories": f"={X(dd, RNG(k0, 10, k0 + 7, 10))}", "values": f"={X(dd, RNG(k0, 11, k0 + 7, 11))}",
+    k0 = L["b_orig0"]
+    bar.add_series({"name": "Faturamento no ano", "categories": f"={X(dd, RNG(k0, 2, k0 + 2, 2))}", "values": f"={X(dd, RNG(k0, 3, k0 + 2, 3))}",
                     "fill": {"color": T["orange_mid"]}, "gap": 45,
                     "data_labels": {"value": True, "num_format": "#,##0", "font": {"name": FONT, "size": 8}}})
-    style_chart(bar, "Top clientes — recebido no ano", 484, 320, legend=None, reverse_x=True, horizontal=True)
+    style_chart(bar, "De onde vem o faturamento (ano)", 484, 320, legend=None, reverse_x=True, horizontal=True)
     chart_pos(ws, bar, r2, True)
     ln_ = wb.add_chart({"type": "line"})
     i0 = L["i_r0"]
@@ -769,7 +682,7 @@ def painel_negocio(ctx):
     section_bar(ctx, ws, r4, 2, 13, "🔔  ALERTAS E INSIGHTS", th["mid"])
     negm = ctx.dados("d_negm")
     msgs = [f"={imp['msg']}",
-            f'=IF({ctx.msg_conc}="","ℹ Registre recebimentos para analisar a concentração de clientes.",{ctx.msg_conc})',
+            f'=IF(SUM({rr(12)})=0,"✓ Nenhuma cobrança em atraso.","⚠ Você tem R$ "&FIXED(SUM({rr(12)}),2)&" em cobranças atrasadas — veja a aba A Receber.")',
             f'=IF({negm}=99,"✓ O caixa do negócio não fica negativo em nenhum mês do ano (incluindo a projeção).",'
             f'"⚠ O caixa projetado fica negativo a partir de "&INDEX({ctx.cfg_list("c_mes", 12)},{negm})&". Antecipe recebimentos ou reduza despesas.")']
     for i, f in enumerate(msgs):
@@ -852,7 +765,7 @@ def painel_geral(ctx):
     negm = ctx.dados("d_negm")
     cov = f'IF({sx("gasp")}=0,0,{sx("prol")}/{sx("gasp")})'
     msgs = [f"={imp['msg']}",
-            f'=IF({atraso}=0,"✓ Nenhuma cobrança em atraso.","⚠ Você tem R$ "&FIXED({atraso},2)&" em cobranças atrasadas — veja a aba Recebimentos.")',
+            f'=IF({atraso}=0,"✓ Nenhuma cobrança em atraso.","⚠ Você tem R$ "&FIXED({atraso},2)&" em cobranças atrasadas — veja a aba A Receber.")',
             f'=IF({negm}=99,"✓ O caixa do negócio permanece positivo no ano (incluindo a projeção).","⚠ O caixa do negócio projetado fica negativo a partir de "&INDEX({ctx.cfg_list("c_mes", 12)},{negm})&".")',
             f'=IF({sx("gasp")}=0,"ℹ Registre os gastos pessoais do mês para medir a cobertura do custo de vida.",IF({cov}>=1,"✓ O pró-labore do mês cobre "&TEXT({cov},"0%")&" dos seus gastos pessoais.","⚠ O pró-labore cobre só "&TEXT({cov},"0%")&" dos gastos pessoais do mês — o restante saiu de reservas."))']
     for i, f in enumerate(msgs):
@@ -870,12 +783,10 @@ def build_all(ctx):
     rows = None
     if ctx.demo:
         _, rows = demo.business_rows()
-    clientes_names = X(N["CLI"], RNG(L["cli_r0"], 2, L["cli_r1"], 2))
-    lancamentos(ctx, "LNEG", area="negocio", title="📝 Lançamentos do negócio — despesas e receitas avulsas",
-                subtitle="Receitas de CLIENTES vão em Recebimentos (não duplique aqui). Aqui: despesas, retirada de pró-labore e receitas avulsas.",
+    lancamentos(ctx, "LNEG", area="negocio", title="📝 Lançamentos do negócio — entradas e saídas do dia a dia",
+                subtitle="Vendas à vista, pagamentos mensais, compras e despesas. Vendas a prazo vão na aba A Receber (não duplique aqui).",
                 ent_key="c_nent", sai_key="c_nsai", all_col_key="d_nall_c", extra_label="Cliente (opcional)",
-                extra_list_ref=clientes_names, demo_rows=rows, extra_width=24, mode="negocio")
-    clientes(ctx)
+                extra_list_ref=None, demo_rows=rows, extra_width=24, mode="negocio", n_ent=NBENT, n_sai=NBSAI)
     recebimentos(ctx)
     impostos(ctx)
     fluxo(ctx)

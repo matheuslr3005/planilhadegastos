@@ -17,7 +17,7 @@ def inicio(ctx):
     ws.set_row(r - 1, 64)
     welcome = ("Bem-vindo(a)! Esta planilha organiza suas finanças do jeito mais simples: você só LANÇA os valores e "
                "todo o resto — resumos, gráficos, alertas e metas — é calculado automaticamente. "
-               + ("Aqui, vida pessoal e negócio ficam separados, com controle de clientes, recebimentos, impostos (DAS do MEI) "
+               + ("Aqui, vida pessoal e negócio ficam separados, com vendas a prazo (A Receber), impostos (DAS do MEI) "
                   "e fluxo de caixa." if aut else
                   "Use o Painel para enxergar para onde o dinheiro vai e a aba Metas para transformar sonhos em planos."))
     B.merge(ws, r, 2, r, 13, welcome, wrap(font_size=11, font_color=T["ink"]))
@@ -29,7 +29,7 @@ def inicio(ctx):
     steps = (["Em ⚙ Config: confira o ANO, escreva seu nome/negócio e renomeie as categorias, se quiser.",
               "Em 💳 Orçamento Pessoal e 🎯 Metas: informe quanto pretende gastar e quais objetivos quer alcançar.",
               "Em 🧾 Impostos: escolha seu regime (MEI, Simples ou outro) e confira o valor do DAS.",
-              "Cadastre seus 🤝 Clientes e registre cada cobrança em 💰 Recebimentos (com vencimento e data de pagamento).",
+              "Vendeu a prazo? Registre em 💰 A Receber, com vencimento; ao receber, preencha a data do pagamento.",
               "No dia a dia: lance gastos em 📝 Lançamentos (pessoal e negócio). Depois é só abrir os 📊 Painéis!"] if aut else
              ["Em ⚙ Config: confira o ANO, escreva seu nome e renomeie as categorias, se quiser.",
               "Em 💳 Orçamento: informe a renda prevista e quanto pretende gastar em cada categoria.",
@@ -52,9 +52,8 @@ def inicio(ctx):
                  ("💳 Orçamento Pessoal", "ORC", "teal", "Planejado × realizado por categoria, com barras de progresso e alertas."),
                  ("📅 Resumo Pessoal", "RESUMO", "teal", "Quadro anual mês a mês por categoria, com mapa de calor."),
                  ("🎯 Metas", "METAS", "teal", "Objetivos de economia, aporte mensal necessário e reserva de emergência."),
-                 ("📝 Lanç. Negócio", "LNEG", "orange", "Despesas e receitas avulsas do negócio (separadas das pessoais)."),
-                 ("🤝 Clientes", "CLI", "orange", "Cadastro de clientes com faturamento, recebido, a receber e inadimplência."),
-                 ("💰 Recebimentos", "REC", "orange", "Cobranças emitidas: vencimento, data de pagamento e status automático."),
+                 ("📝 Lanç. Negócio", "LNEG", "orange", "Vendas, pagamentos mensais, compras e despesas do negócio (separados do pessoal)."),
+                 ("💰 A Receber", "REC", "orange", "Vendas a prazo: vencimento, data de pagamento e status automático (pago, pendente, atrasado)."),
                  ("🧾 Impostos", "IMP", "orange", "DAS do MEI (ou % do Simples), vencimentos, pagamentos e limite anual."),
                  ("📈 Fluxo de Caixa", "FLUXO", "orange", "Caixa do negócio mês a mês: realizado e projetado, com saldo acumulado."),
                  ("⚙ Config", "CONFIG", "navy", "Ano, nome, categorias, formas de pagamento e metas gerais.")]
@@ -93,7 +92,7 @@ def inicio(ctx):
             "Não insira/apague linhas dentro das tabelas de fórmulas. Para ver mais lançamentos, use os filtros do cabeçalho; há espaço para " + str(NLANC) + " linhas.",
             "Cada aba tem botões de navegação no topo. Se algo parecer estranho, confira a faixa de VERIFICAÇÃO no topo de Lançamentos."]
     if aut:
-        tips.insert(2, "Retirada do negócio: lance a saída 'Pró-labore / Retirada' em Lanç. Negócio e a entrada 'Pró-labore' em Lanç. Pessoal. Receitas de clientes: lance só em Recebimentos (não duplique).")
+        tips.insert(2, "Retirada do negócio: lance a saída 'Retirada pessoal' em Lanç. Negócio e a entrada 'Pró-labore' em Lanç. Pessoal. Vendas a prazo: lance só em A Receber, não duplique em Lanç. Negócio.")
         tips.append("Os valores do DAS/MEI e o limite anual são parâmetros editáveis na aba Impostos — confira sempre a legislação vigente no Portal do Simples Nacional. Esta planilha organiza, mas não substitui um contador.")
     for t in tips:
         ws.set_row(r - 1, 36 if len(t) > 150 else 28)

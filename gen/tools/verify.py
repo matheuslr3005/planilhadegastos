@@ -90,7 +90,9 @@ def verify_business():
     wb = load_workbook(os.path.join(DIST, FILES[("aut", True)]), data_only=True)
     rec, lan = demo.business_rows()
     ref = dt.date(2026, 9, 30)
-    print("[aut] Recebimentos / Clientes")
+    V, MEN, OUT = NENT_L
+    COMP, DESP, IMPT, RET = NSAI_L
+    print("[aut] A Receber")
     st = collections.Counter(wb[N["REC"]].cell(row=r, column=9).value for r in range(L["r_r0"], L["r_r0"] + len(rec)))
     exp_late = [r for r in rec if r[5] is None and r[4] < ref]
     exp_pend = [r for r in rec if r[5] is None and r[4] >= ref]
@@ -101,68 +103,69 @@ def verify_business():
     chk("KPI em atraso", cell(wb, N["REC"], ctx.CS + 1, 4), sum(r[3] for r in exp_late))
     paid = sum(r[3] for r in rec if r[5])
     chk("KPI recebido no ano", cell(wb, N["REC"], ctx.CS + 1, 5), paid)
-    chk("clientes: total recebido", cell(wb, N["CLI"], L["cli_tot"], 8), paid)
-    chk("clientes: total a receber", cell(wb, N["CLI"], L["cli_tot"], 9), sum(r[3] for r in rec if r[5] is None))
-    aur = sum(r[3] for r in rec if r[1] == "Studio Aurora" and r[5])
-    chk("cliente Studio Aurora recebido", cell(wb, N["CLI"], L["cli_r0"], 8), aur)
 
-    print("[aut] Impostos")
-    pay_m = collections.Counter(); avu_m = collections.Counter(); opex = collections.Counter(); pro = collections.Counter()
+    pay_m = collections.Counter(); ven = collections.Counter(); men = collections.Counter()
+    opex = collections.Counter(); pro = collections.Counter()
     for e, c, d, v, venc, pg, f in rec:
         if pg:
             pay_m[pg.month] += v
     for d, desc, cat, f, v, x, o in lan:
-        if cat == NENT_L[0]:
-            avu_m[d.month] += v
-        elif cat == NSAI_L[0]:
-            pro[d.month] += v
-        elif cat in NSAI_L:
-            opex[d.month] += v
+        if cat == V: ven[d.month] += v
+        elif cat == MEN: men[d.month] += v
+        elif cat == RET: pro[d.month] += v
+        elif cat in (COMP, DESP, IMPT): opex[d.month] += v
+    fat = lambda m: pay_m[m] + ven[m] + men[m]
+    print("[aut] Impostos")
     for m in (1, 6, 9):
-        chk(f"IMP receita recebida mês {m}", cell(wb, N["IMP"], L["i_r0"] + m - 1, 3), pay_m[m] + avu_m[m])
-    das = 1621 * 0.05 + 5
+        chk(f"IMP faturamento mês {m}", cell(wb, N["IMP"], L["i_r0"] + m - 1, 3), fat(m))
+    das = 1621 * 0.05 + 1          # demo: comércio e indústria
     chk("DAS mensal", cell(wb, N["IMP"], L["i_r0"], 4), das)
     chk("IMP status set = 'A pagar'", 1 if cell(wb, N["IMP"], L["i_r0"] + 8, 9) == "A pagar" else 0, 1)
     chk("IMP status ago = 'Pago'", 1 if cell(wb, N["IMP"], L["i_r0"] + 7, 9) == "Pago" else 0, 1)
-    acum = sum(pay_m[m] + avu_m[m] for m in range(1, 10))
-    chk("receita acumulada (limite MEI)", cell(wb, N["IMP"], L["i_r0"] + 8, 12), acum)
+    acum = sum(fat(m) for m in range(1, 10))
+    chk("faturamento acumulado (limite MEI)", cell(wb, N["IMP"], L["i_r0"] + 8, 12), acum)
     chk("% do limite", cell(wb, N["IMP"], ctx.CS + 3, 12), acum / 81000, 0.0005)
     chk("projeção anual", cell(wb, N["IMP"], ctx.CS + 4, 12), acum / 9 * 12)
 
     print("[aut] Fluxo de caixa")
-    R_ = L["f_rows"] if "f_rows" in L else None
     f0 = L["f_0"]
-    rows_ = dict(ini=f0, rec=f0 + 1, avu=f0 + 2, out=f0 + 3, nov=f0 + 4, ent=f0 + 5, dsp=f0 + 6, imp=f0 + 7, pro=f0 + 8,
-                 sai=f0 + 9, var=f0 + 10, fim=f0 + 11, res=f0 + 12, mar=f0 + 13)
+    rows_ = dict(ini=f0, rec=f0 + 1, ven=f0 + 2, men=f0 + 3, out=f0 + 4, nov=f0 + 5, ent=f0 + 6, dsp=f0 + 7, imp=f0 + 8,
+                 pro=f0 + 9, sai=f0 + 10, var=f0 + 11, fim=f0 + 12, res=f0 + 13, mar=f0 + 14)
     saldo = 4000
     imp_paid = collections.Counter()
     for i in range(8):
-        imp_paid[i + 2] += das       # pago de fev a set (competências jan-ago)
+        imp_paid[i + 2] += das
+    outras = collections.Counter()
+    for d, desc, cat, f, v, x, o in lan:
+        if cat == OUT: outras[d.month] += v
     for m in range(1, 10):
-        saldo += pay_m[m] + avu_m[m] - opex[m] - imp_paid[m] - pro[m]
+        saldo += fat(m) + outras[m] - opex[m] - imp_paid[m] - pro[m]
         if m in (1, 5, 9):
             chk(f"saldo final mês {m}", cell(wb, N["FLUXO"], rows_["fim"], 2 + m), saldo)
-    avg_rev = sum(pay_m[m] + avu_m[m] for m in range(1, 10)) / 9
+    avg_rev = sum(fat(m) for m in range(1, 10)) / 9
     avg_opex = sum(opex[m] for m in range(1, 10)) / 9
-    chk("receita média realizada", cell(wb, N["FLUXO"], L["f_prem"] + 4, 3), avg_rev)
+    chk("faturamento médio realizado", cell(wb, N["FLUXO"], L["f_prem"] + 4, 3), avg_rev)
     chk("despesa média", cell(wb, N["FLUXO"], L["f_prem"] + 2, 3), avg_opex)
     open_ = sum(r[3] for r in rec if r[5] is None)
-    chk("out: recebimentos previstos (rola em aberto)", cell(wb, N["FLUXO"], rows_["rec"], 12), open_)
+    chk("out: A Receber previsto (rola em aberto)", cell(wb, N["FLUXO"], rows_["rec"], 12), open_)
     chk("out: receita nova prevista", cell(wb, N["FLUXO"], rows_["nov"], 12), avg_rev * 0.8)
     chk("out: despesas (média)", cell(wb, N["FLUXO"], rows_["dsp"], 12), avg_opex)
     chk("out: DAS em aberto (set)", cell(wb, N["FLUXO"], rows_["imp"], 12), das)
-    chk("out: pró-labore previsto", cell(wb, N["FLUXO"], rows_["pro"], 12), 4500)
-    s_out = saldo + open_ + avg_rev * 0.8 - avg_opex - das - 4500
+    chk("out: retirada prevista", cell(wb, N["FLUXO"], rows_["pro"], 12), 3400)
+    s_out = saldo + open_ + avg_rev * 0.8 - avg_opex - das - 3400
     chk("saldo final out (projetado)", cell(wb, N["FLUXO"], rows_["fim"], 12), s_out)
-    s_nov = s_out + avg_rev * 0.8 - avg_opex - das - 4500
+    s_nov = s_out + avg_rev * 0.8 - avg_opex - das - 3400
     chk("saldo final nov (projetado)", cell(wb, N["FLUXO"], rows_["fim"], 13), s_nov)
     print("[aut] Painel Negócio / Geral (set)")
     ser = L["b_ser"]
-    chk("Dados: receita set", cell(wb, N["DADOS"], ser["rec"], 11), pay_m[9] + avu_m[9])
-    chk("Dados: lucro set", cell(wb, N["DADOS"], ser["lucro"], 11), pay_m[9] + avu_m[9] - opex[9] - imp_paid[9])
-    chk("KPI neg: receita do mês", cell(wb, N["PNEG"], ctx.CS + 3, 2), pay_m[9] + avu_m[9])
+    chk("Dados: faturamento set", cell(wb, N["DADOS"], ser["rec"], 11), fat(9))
+    chk("Dados: lucro set", cell(wb, N["DADOS"], ser["lucro"], 11), fat(9) + outras[9] - opex[9] - imp_paid[9])
+    chk("KPI neg: faturamento do mês", cell(wb, N["PNEG"], ctx.CS + 3, 2), fat(9))
     chk("KPI neg: a receber", cell(wb, N["PNEG"], ctx.CS + 3, 8), open_)
     chk("KPI geral: caixa negócio", cell(wb, N["GERAL"], ctx.CS + 3, 4), saldo)
+    chk("origem do faturamento: vendas (ano)", cell(wb, N["DADOS"], L["b_orig0"] + 1, 3), sum(ven[m] for m in range(1, 10)))
+    chk("origem do faturamento: pagamento mensal (ano)", cell(wb, N["DADOS"], L["b_orig0"] + 2, 3), sum(men[m] for m in range(1, 10)))
+    chk("origem do faturamento: A Receber pagas (ano)", cell(wb, N["DADOS"], L["b_orig0"], 3), paid)
 
 
 for kind in ("pf", "aut"):
